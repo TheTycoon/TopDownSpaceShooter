@@ -23,7 +23,7 @@ class Mob(pygame.sprite.Sprite):
         self.rect.x += self.banking_speed
         self.rect.y += self.thrusting_speed
 
-        if self.rect.top > settings.HEIGHT:
+        if self.rect.top > settings.HEIGHT or self.rect.right < 0 or self.rect.left > settings.WIDTH:
             self.kill()
 
 
@@ -60,8 +60,6 @@ class Asteroid(pygame.sprite.Sprite):
         self.banking_speed = random.randint(-2, 2)
         self.thrusting_speed = random.randint(1, 3)
 
-
-
     def update(self):
         now = pygame.time.get_ticks()
         if now - self.last_update > self.frame_rate:
@@ -76,7 +74,7 @@ class Asteroid(pygame.sprite.Sprite):
         self.rect.x += self.banking_speed
         self.rect.y += self.thrusting_speed
 
-        if self.rect.top > settings.HEIGHT:
+        if self.rect.top > settings.HEIGHT or self.rect.right < 0 or self.rect.left > settings.WIDTH:
             self.kill()
 
 
