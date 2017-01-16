@@ -46,7 +46,8 @@ class Asteroid(pygame.sprite.Sprite):
             self.current_hull = 25
 
         self.current_frame = 0
-        self.frame_rate = random.randint(100, 500)
+        self.frame_rate = random.randint(50, 100)
+        self.rotation = random.randint(0, 1)
         self.last_update = pygame.time.get_ticks()
         self.image = self.spritesheet[self.current_frame]
         self.mask = pygame.mask.from_surface(self.image)
@@ -64,7 +65,10 @@ class Asteroid(pygame.sprite.Sprite):
         now = pygame.time.get_ticks()
         if now - self.last_update > self.frame_rate:
             self.last_update = now
-            self.current_frame = (self.current_frame + 1) % len(self.spritesheet)
+            if self.rotation == 0:
+                self.current_frame = (self.current_frame + 1) % len(self.spritesheet)
+            else:
+                self.current_frame = (self.current_frame - 1) % len(self.spritesheet)
 
             center = self.rect.center
             self.image = self.spritesheet[self.current_frame]
@@ -75,6 +79,62 @@ class Asteroid(pygame.sprite.Sprite):
         self.rect.y += self.thrusting_speed
 
         if self.rect.top > settings.HEIGHT or self.rect.right < 0 or self.rect.left > settings.WIDTH:
+            self.kill()
+
+
+class GroundLaser(pygame.sprite.Sprite):
+    def __init__(self, game, x, y, direction):
+        self.groups = game.enemies
+        pygame.sprite.Sprite.__init__(self, self.groups)
+        self.game = game
+        self.direction = direction
+        if self.direction == 'left':
+            self.image = game.ground_enemy_image_left
+        elif self.direction == 'right':
+            self.image = game.ground_enemy_image_right
+        self.image.set_colorkey(settings.BLACK)
+        self.mask = pygame.mask.from_surface(self.image)
+        self.rect = self.image.get_rect()
+        self.rect.x = x
+        self.rect.y = y
+        self.max_hull = 10000
+        self.current_hull = 10000
+
+        self.last_shot = pygame.time.get_ticks()
+
+    def update(self):
+        self.rect.y += 1
+
+        now = pygame.time.get_ticks()
+        if now - self.last_shot > 1000:
+            self.last_shot = now
+            bullet = Bullet(self.game, self.rect.centerx, self.rect.centery, self.direction, 5)
+            self.game.enemy_bullets.add(bullet)
+
+
+class Bullet(pygame.sprite.Sprite):
+    def __init__(self, game, x, y, direction, speed):
+        pygame.sprite.Sprite.__init__(self)
+        self.image = game.player_bullet_image
+        self.rect = self.image.get_rect()
+        self.rect.centery = y
+        self.rect.centerx = x
+        self.speed = pygame.math.Vector2(0, 1)
+        if direction == 'up':
+            self.speed.y += -speed
+        elif direction == 'down':
+            self.speed.y += speed
+        elif direction == 'left':
+            self.speed.x += -speed
+        elif direction == 'right':
+            self.speed.x += speed
+
+    def update(self):
+        self.rect.x += self.speed.x
+        self.rect.y +=  self.speed.y
+
+        # gets rid of bullet once it is off screen
+        if self.rect.bottom < 0 or self.rect.top > settings.HEIGHT or self.rect.left > settings.WIDTH or self.rect.right < 0 :
             self.kill()
 
 

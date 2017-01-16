@@ -3,8 +3,10 @@ import settings
 from os import path
 import player
 import enemies
+import levels
 import sprites
-import random
+from transitions import Machine
+import button
 
 
 class Game:
@@ -12,18 +14,7 @@ class Game:
         pygame.init()
         self.screen = pygame.display.set_mode((settings.WIDTH, settings.HEIGHT), pygame.FULLSCREEN)
         self.clock = pygame.time.Clock()
-        pygame.display.set_caption(settings.TITLE)
-
-        # Sprite Groups: Need to be Updated, Drawn... also used for collision detections
-        self.player_sprite = pygame.sprite.Group()
-        self.enemies = pygame.sprite.Group()
-        self.asteroids = pygame.sprite.Group()
-        self.player_bullets = pygame.sprite.Group()
-        self.explosions = pygame.sprite.Group()
-
-        # Load all images/sounds/etc for the game
-        self.load_data()
-
+        self.mouse = pygame.mouse
         # Detects and initializes a joystick if there is one connected
         joysticks = [pygame.joystick.Joystick(x) for x in range(pygame.joystick.get_count())]
         if joysticks:
@@ -33,15 +24,44 @@ class Game:
         else:
             self.joystick_enabled = False
 
+        # State Machine
+        states = ['start screen', 'options menu', 'playing', 'paused']
+        transitions = [
+            {'trigger': 'new', 'source': 'start screen', 'dest': 'playing'},
+            {'trigger': 'options', 'source': 'start screen', 'dest': 'options menu'}
+        ]
+        self.machine = Machine(states=states, transitions=transitions, initial='start screen')
+
+        # buttons for the start screen, consider moving later
+        self.buttons = []
+        self.start_button = button.StartButton(self, settings.WIDTH / 2 - 150, settings.HEIGHT / 2 - 150, 300, 100, 'Start')
+        self.buttons.append(self.start_button)
+        self.options_button = button.Button(self, settings.WIDTH / 2 - 150, settings.HEIGHT / 2, 300, 100, 'Options')
+        self.buttons.append(self.options_button)
+        self.exit_button = button.ExitButton(self, settings.WIDTH / 2 - 150, settings.HEIGHT / 2 + 150, 300, 100, 'Exit')
+        self.buttons.append(self.exit_button)
+
+        # Sprite Groups: Need to be Updated, Drawn... also used for collision detections
+        self.player_sprite = pygame.sprite.Group()
+        self.enemies = pygame.sprite.Group()
+        self.asteroids = pygame.sprite.Group()
+        self.player_bullets = pygame.sprite.Group()
+        self.enemy_bullets = pygame.sprite.Group()
+        self.explosions = pygame.sprite.Group()
+        self.background_stars = pygame.sprite.Group()
+
     def new(self):
         # Flag indicating the application is running
         self.running = True
+        # Load all images/sounds/etc for the game
+        self.load_data()
 
-
-
-        # temporarily being used to spawn player and enemies, remove later once levels are added
+        # temporarily being used to load level, spawn player and enemies, remove later once levels are added
+        self.level_one = levels.Level(self)
         self.player = player.Player(self, settings.WIDTH / 2, 7 * settings.HEIGHT / 8)
-        self.enemy_update = pygame.time.get_ticks()
+
+        self.enemy_update = pygame.time.get_ticks() # move somewhere better
+        self.star_update = pygame.time.get_ticks()  # move somewhere better
 
     def run(self):
         # Game Loop
@@ -59,11 +79,11 @@ class Game:
         self.snd_folder = path.join(self.game_folder, 'snd')
 
         # SINGLE IMAGES BELOW
-        self.player_image = pygame.image.load(path.join(self.img_folder, "player_ship_3_gun.png")).convert_alpha()
+        self.player_image = pygame.image.load(path.join(self.img_folder, "player_ship_1_gun.png")).convert_alpha()
         self.player_bank_right_image = pygame.image.load(
-            path.join(self.img_folder, "player_ship_3_gun_bank_right.png")).convert_alpha()
+            path.join(self.img_folder, "player_ship_1_gun_bank_right.png")).convert_alpha()
         self.player_bank_left_image = pygame.image.load(
-            path.join(self.img_folder, "player_ship_3_gun_bank_left.png")).convert_alpha()
+            path.join(self.img_folder, "player_ship_1_gun_bank_left.png")).convert_alpha()
 
         temp_image = pygame.image.load(path.join(self.img_folder, "player_shot.png")).convert_alpha()
         temp_rect = temp_image.get_rect()
@@ -73,6 +93,10 @@ class Game:
         temp_rect = temp_image.get_rect()
         temp_image = pygame.transform.scale(temp_image, (temp_rect.width // 8, temp_rect.height // 8))
         self.enemy_image = pygame.transform.rotate(temp_image, 180)
+
+        temp_image = pygame.image.load(path.join(self.img_folder, "enemy_stationery_laser.png")).convert_alpha()
+        self.ground_enemy_image_left = temp_image
+        self.ground_enemy_image_right = pygame.transform.flip(temp_image, True, False)
 
         # SPRITESHEETS FOR ANIMATIONS BELOW
         self.asteroid_spritesheet = sprites.Spritesheet(path.join(self.img_folder, "asteroid_medium_spritesheet.png"))
@@ -108,12 +132,34 @@ class Game:
             self.death_explosion_frames.append(temp_image)
 
     def update(self):
+        if self.machine.state == 'start screen':
+            self.update_start_screen()
+        elif self.machine.state == 'playing':
+            self.update_playing_state()
+
+    def update_start_screen(self):
+        for button in self.buttons:
+            button.update(self.mouse)
+
+    def update_playing_state(self):
         # Update all of the sprite groups
         self.player_sprite.update()
         self.enemies.update()
         self.asteroids.update()
         self.player_bullets.update()
+        self.enemy_bullets.update()
         self.explosions.update()
+        self.background_stars.update()
+
+        now = pygame.time.get_ticks()
+
+        # creates background stars
+        if now - self.star_update > 200:
+            self.star_update = now
+            sprites.Star(self)
+
+        # update the level
+        self.level_one.update_level()
 
         # Detect if the player's bullets hit any enemy ships
         hits = pygame.sprite.groupcollide(self.enemies, self.player_bullets, False, True)
@@ -142,7 +188,7 @@ class Game:
             explosion_animation = sprites.SingleAnimation(hit.rect.center, self.explosion_frames, 50)
             self.explosions.add(explosion_animation)
 
-        # Detect if the player collides with any enemy ships or asteroids
+        # Detect if the player collides with any enemy ships or asteroids or enemy bullets
         # Player unable to be hurt/collide for a period of time after taking damage
         if not self.player.invulnerable:
             for enemy in self.enemies:
@@ -151,22 +197,9 @@ class Game:
             for asteroid in self.asteroids:
                 if pygame.sprite.collide_mask(asteroid, self.player):
                     self.player.enemy_collision()
-
-        # This creates a V-shaped swarm of enemy ships
-        # now = pygame.time.get_ticks()
-        # if now - self.enemy_update > 5000:
-        #     self.enemy_update = now
-        #     swarm = [enemies.Mob(self, settings.WIDTH / 2, -100), enemies.Mob(self, settings.WIDTH / 2 + 50, -150),
-        #              enemies.Mob(self, settings.WIDTH / 2 - 50, -150), enemies.Mob(self, settings.WIDTH / 2 + 100, -200),
-        #              enemies.Mob(self, settings.WIDTH / 2 - 100, -200)]
-
-        # This is temporary: Currently creates random asteroids
-        now = pygame.time.get_ticks()
-        if now - self.enemy_update > 100:
-            self.enemy_update = now
-            size_list = ['small', 'medium', 'large']
-            size = random.choice(size_list)
-            enemies.Asteroid(self, size)
+            for bullet in self.enemy_bullets:
+                if pygame.sprite.collide_mask(bullet, self.player):
+                    self.player.enemy_collision()
 
     def events(self):
         for event in pygame.event.get():
@@ -189,7 +222,7 @@ class Game:
                         self.playing = False
                     self.running = False
 
-            # ALL JOYBUTTON DOWN OR UP EVENTS HERE
+            # ALL JOYBUTTON DOWN AND UP EVENTS HERE
             if event.type == pygame.JOYBUTTONDOWN or event.type == pygame.JOYBUTTONUP:
 
                 # PASS THROUGH TO A CONTROLLER
@@ -199,10 +232,31 @@ class Game:
         # START NEW FRAME
         self.screen.fill(settings.BLACK)
 
+        # Call methods to draw depending on the game state
+        if self.machine.state == 'start screen':
+            self.draw_start_screen()
+        elif self.machine.state == 'playing':
+            self.draw_playing_state()
+
+        # DISPLAY FRAME
+        pygame.display.flip()
+
+    def draw_start_screen(self):
+        self.draw_text(settings.TITLE, 150, settings.YELLOW, settings.WIDTH / 2, settings.HEIGHT / 8, True)
+
+        for button in self.buttons:
+            button.draw(self.screen)
+            if button.text is not None:
+                self.draw_text(button.text, 50, settings.WHITE, button.rect.centerx,
+                                    button.rect.top + button.rect.height / 6, True)
+
+    def draw_playing_state(self):
         # DRAW ALL SPRITE GROUPS
+        self.background_stars.draw(self.screen)
         self.enemies.draw(self.screen)
         self.asteroids.draw(self.screen)
         self.player_bullets.draw(self.screen)
+        self.enemy_bullets.draw(self.screen)
         self.player_sprite.draw(self.screen)
         self.explosions.draw(self.screen)
 
@@ -211,8 +265,8 @@ class Game:
         if self.player.max_shield > 0:
             self.draw_bar(10, 30, self.player.current_shield / self.player.max_shield, settings.BLUE)
 
-        # DISPLAY FRAME
-        pygame.display.flip()
+
+
 
     # GENERIC METHOD TO DRAW TEXT - CONSIDER MOVING TO A UI FILE WITH BUTTONS
     def draw_text(self, text, size, color, x, y, centered):

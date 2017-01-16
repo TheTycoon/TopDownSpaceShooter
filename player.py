@@ -28,7 +28,7 @@ class Player(pygame.sprite.Sprite):
         self.bank_left_image = pygame.transform.scale(temp_image, (temp_rect.width // 8, temp_rect.height // 8))
         self.banking_left = False
 
-        self.ship = settings.PLAYER_SHIP_3
+        self.ship = settings.PLAYER_SHIP_1
 
         self.max_hull = self.ship['hull']
         self.current_hull = self.ship['hull']
@@ -153,17 +153,17 @@ class Player(pygame.sprite.Sprite):
             now = pygame.time.get_ticks()
             if now - self.last_shot1 > self.shoot_delay1:
                 self.last_shot1 = now
-                weapons.fire_machine_gun(self.game, self.weapon_rects[0], 3)
+                weapons.fire_machine_gun(self.game, self.weapon_rects[0], 1)
         if self.joystick_firing2:
             now = pygame.time.get_ticks()
             if now - self.last_shot2 > self.shoot_delay2:
                 self.last_shot2 = now
-                weapons.fire_machine_gun(self.game, self.weapon_rects[1], 3)
+                weapons.fire_machine_gun(self.game, self.weapon_rects[1], 1)
         if self.joystick_firing3:
             now = pygame.time.get_ticks()
             if now - self.last_shot3 > self.shoot_delay3:
                 self.last_shot3 = now
-                weapons.fire_machine_gun(self.game, self.weapon_rects[2], 3)
+                weapons.fire_machine_gun(self.game, self.weapon_rects[2], 1)
 
     def joystick_button(self, event):
         if self.weapon_slots >= 1:

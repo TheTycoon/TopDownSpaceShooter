@@ -1,4 +1,6 @@
 import pygame
+import settings
+import random
 
 
 class Spritesheet:
@@ -35,3 +37,18 @@ class SingleAnimation(pygame.sprite.Sprite):
                 self.image = self.spritesheet[self.frame]
                 self.rect = self.image.get_rect()
                 self.rect.center = center
+
+
+class Star(pygame.sprite.Sprite):
+    def __init__(self, game):
+        self.game = game
+        self.groups = game.background_stars
+        pygame.sprite.Sprite.__init__(self, self.groups)
+        self.image = pygame.Surface((1, 1))
+        self.rect = self.image.get_rect()
+        self.image.fill(settings.WHITE, self.rect)
+        self.rect.x = random.randint(0, settings.WIDTH)
+        self.rect.y = -1
+
+    def update(self):
+        self.rect.y += 1
